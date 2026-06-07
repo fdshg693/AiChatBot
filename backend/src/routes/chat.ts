@@ -12,7 +12,9 @@ function toStoredMessage(
   conversationId: string
 ): StoredMessage {
   return {
-    id: message.id ?? crypto.randomUUID(),
+    // `?? ` は null/undefined しか拾わない。SDK が空文字 id を返す場合があるので
+    // `|| ` で空文字もフォールバックさせる（空 id だと PK 衝突で保存が握り潰される）。
+    id: message.id || crypto.randomUUID(),
     conversationId,
     role: message.role as Role,
     // parts は SDK 準拠の JSON としてそのまま保持（text 以外はパススルー）。
@@ -43,6 +45,10 @@ chatRoutes.post("/api/chat", async (c) => {
   });
 
   return result.toUIMessageStreamResponse({
+    // 永続化モードを有効にする。これが無いと responseMessage.id が空文字になり、
+    // PK(messages.id) 衝突で assistant 応答が INSERT OR IGNORE に握り潰される。
+    originalMessages: messages,
+    generateMessageId: () => crypto.randomUUID(),
     // onFinish は最終的な UIMessage 群を返す（responseMessage = 今回の assistant 応答）。
     onFinish: async ({ responseMessage }) => {
       try {
@@ -63,11 +69,12 @@ chatRoutes.post("/api/chat", async (c) => {
           });
         }
 
-        // 受信したユーザ履歴 + 今回生成された assistant 応答を保存。
-        // INSERT OR IGNORE なので、既存メッセージの重複挿入は無害。
-        const toPersist: StoredMessage[] = messages
-          .filter((m) => m.role === "user")
-          .map((m) => toStoredMessage(m, id));
+        // 保存ルールは1つ: 受信した履歴 + 今回の AI 応答をまるごと渡し、
+        // 重複排除は appendMessages の冪等性契約（message.id で冪等）に一任する。
+        // → 既に保存済みのメッセージは無害にスキップされる（実装手段は repo 層の責務）。
+        const toPersist: StoredMessage[] = messages.map((m) =>
+          toStoredMessage(m, id)
+        );
 
         if (responseMessage) {
           toPersist.push(toStoredMessage(responseMessage, id));

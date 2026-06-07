@@ -10,6 +10,18 @@ export interface ConversationRepo {
   createConversation(c: Conversation): Promise<void>;
   getConversation(id: string): Promise<Conversation | null>;
   listConversations(): Promise<Conversation[]>;
+  /**
+   * メッセージを追記する。
+   *
+   * 【契約: message.id で冪等であること】
+   * 同じ `id` のメッセージを複数回渡しても、保存されるのは最初の1件だけ
+   * （以降は無視され、既存行を上書きしない）。呼び出し側（routes/chat.ts）は
+   * 「履歴 + 今回の応答をまるごと渡し、重複排除はこの層に任せる」前提で書かれている。
+   *
+   * この冪等性は型では表現できないため、実装を差し替える際は必ず保証すること。
+   * 破ると履歴に重複メッセージが入る（型は変わらないのでサイレントに壊れる）。
+   * SQLite 実装は PK(messages.id) + `INSERT OR IGNORE` で実現している。
+   */
   appendMessages(conversationId: string, messages: StoredMessage[]): Promise<void>;
   listMessages(conversationId: string): Promise<StoredMessage[]>;
 }
