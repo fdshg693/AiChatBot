@@ -1,0 +1,19 @@
+# package
+node_modules
+
+# build
+dist
+
+# db
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# env
+.env
+
+
+# system
+.DS_Store

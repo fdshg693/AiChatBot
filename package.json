@@ -1,0 +1,15 @@
+{
+  "name": "aichatbot-root",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @app/backend --filter @app/frontend dev",
+    "dev:backend": "pnpm --filter @app/backend dev",
+    "dev:frontend": "pnpm --filter @app/frontend dev",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
