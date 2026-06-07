@@ -9,8 +9,11 @@ import type { StoredMessage, Role } from "@app/shared";
 import { getModel, SYSTEM_PROMPT } from "../ai/provider.js";
 import { buildTools } from "../ai/tools.js";
 import { conversationRepo } from "../repo/conversation.js";
+import { createLogger } from "../log.js";
 
 export const chatRoutes = new Hono();
+
+const log = createLogger("chat");
 
 /** UIMessage を永続化用の StoredMessage に変換する。 */
 function toStoredMessage(
@@ -53,6 +56,12 @@ chatRoutes.post("/api/chat", async (c) => {
   // 許可リスト（Search/Extract）で絞った tools マップ。未選択なら undefined。
   const activeTools = buildTools(tools);
 
+  log.info(
+    `POST /api/chat conv=${id} messages=${messages.length} tools=[${
+      activeTools ? Object.keys(activeTools).join(",") : ""
+    }]`
+  );
+
   const result = streamText({
     model: getModel(),
     system: SYSTEM_PROMPT,
@@ -61,6 +70,22 @@ chatRoutes.post("/api/chat", async (c) => {
     ...(activeTools
       ? { tools: activeTools, stopWhen: stepCountIs(5) }
       : {}),
+    // ステップ完了ごとにツール呼び出しを記録する。ツール名は info、
+    // 実引数・結果は機微になり得るので debug（LOG_LEVEL=debug 時のみ全文）。
+    onStepFinish: ({ toolCalls, toolResults }) => {
+      for (const call of toolCalls ?? []) {
+        log.info(`tool call: ${call.toolName}`);
+        log.debug(`  args:`, call.input);
+      }
+      for (const r of toolResults ?? []) {
+        log.debug(`tool result: ${r.toolName}`, r.output);
+      }
+    },
+    // ストリーム生成中のエラー（モデル呼び出し失敗・ツール例外など）。
+    // これが無いと握り潰されてログにもクライアントにも出にくい。
+    onError: ({ error }) => {
+      log.error("streamText error:", error);
+    },
   });
 
   return result.toUIMessageStreamResponse({
@@ -101,7 +126,7 @@ chatRoutes.post("/api/chat", async (c) => {
 
         await conversationRepo.appendMessages(id, toPersist);
       } catch (err) {
-        console.error("[chat] failed to persist messages:", err);
+        log.error("failed to persist messages:", err);
       }
     },
   });

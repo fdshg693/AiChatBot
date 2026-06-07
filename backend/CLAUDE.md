@@ -11,6 +11,12 @@ Hono + AI SDK Core + SQLite。詳細は [../docs/CONTRACT.md](../docs/CONTRACT.m
 - **SQLite アクセスはリポジトリ層（`src/repo/`）の裏に隠す**。SQL を route に散らさない。上位は `ConversationRepo` インターフェースのみに依存。
   - `messages` は `parts` を **JSON 文字列カラム**で保持。読み出し時に `StoredMessage.parse()`（`@app/shared`）で検証。
 - 型・スキーマは `@app/shared` から import（手書き再定義しない）。
+- **ログは `src/log.ts` の `createLogger(namespace)` を使う**。`console.*` を直書きしない。
+  - レベルは `debug < info < warn < error`。`LOG_LEVEL`（既定 `info`）でしきい値を制御。
+  - **機微になり得る値（ツール引数・API レスポンス等）は `debug`** に置く（既定では出さない）。
+  - console と**ログファイルの両方**へ出力。`LOG_DIR`（既定 `./logs`）/`LOG_FILE`（既定 `app.log`）。
+    サイズ超過（`LOG_MAX_SIZE` 既定 5MB）で `app.log.1..N`（`LOG_MAX_FILES` 既定 3）へ番号ローテーション。
+    `logs/` は git 管理外。
 
 ## エンドポイント契約
 
