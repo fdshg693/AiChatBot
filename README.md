@@ -10,6 +10,8 @@
 
 ## 使用技術
 
+主要なライブラリ等の説明は[LIBRARIES.md](docs/LIBRARIES.md)を参照。
+
 - Typescript(バックエンド・フロントエンド)
   - Hono(バックエンド)
   - Vue

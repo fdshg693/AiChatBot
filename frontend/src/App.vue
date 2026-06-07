@@ -16,12 +16,40 @@ const activeId = ref<string>(chat.value.id);
 // 入力欄は自前で持つ（v5+ でフレームワーク管理の input ヘルパは廃止）。
 const input = ref("");
 
+// AI が常時利用できるツール（バックエンドの許可リスト＝Search/Extract に対応）。
+// スレッド履歴ではなく WEB アプリ側の状態として持ち、会話の途中でも切り替え可能。
+const AVAILABLE_TOOLS = [
+  { id: "tavilySearch", label: "Web検索" },
+  { id: "tavilyExtract", label: "本文抽出" },
+] as const;
+type ToolId = (typeof AVAILABLE_TOOLS)[number]["id"];
+
+// 現在選択中のツール。会話を切り替えても引き継ぐ（アプリ全体の状態）。
+const selectedTools = ref<ToolId[]>([]);
+
+/** ツールの ON/OFF を切り替える（送信のたびに最新値が body に載る）。 */
+function toggleTool(id: ToolId): void {
+  const i = selectedTools.value.indexOf(id);
+  if (i === -1) selectedTools.value.push(id);
+  else selectedTools.value.splice(i, 1);
+}
+
 /** 指定 id・初期メッセージで Chat インスタンスを生成する。 */
 function createChat(id: string, messages: UIMessage[] = []): Chat<UIMessage> {
   return new Chat({
     id,
     messages,
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      // 送信のたびに「現在選択中のツール」を body に載せる。
+      // prepareSendMessagesRequest を指定すると既定の body 構築を上書きするため、
+      // サーバが必要とする id / messages も自分で詰め直す（落とすと
+      // convertToModelMessages が "messages is not iterable" で落ちる）。
+      // 送信時に呼ばれるので、会話の途中で切り替えても次の送信から反映される。
+      prepareSendMessagesRequest: ({ id, messages, body }) => ({
+        body: { ...body, id, messages, tools: selectedTools.value },
+      }),
+    }),
   });
 }
 
@@ -101,7 +129,23 @@ onMounted(loadConversations);
     </aside>
 
     <main class="chat">
-      <header class="chat__header">AI Chatbot</header>
+      <header class="chat__header">
+        <span>AI Chatbot</span>
+        <!-- AI が使えるツールの ON/OFF。会話の途中でも切り替え可能。 -->
+        <div class="tools">
+          <button
+            v-for="t in AVAILABLE_TOOLS"
+            :key="t.id"
+            type="button"
+            class="tool"
+            :class="{ 'tool--on': selectedTools.includes(t.id) }"
+            :aria-pressed="selectedTools.includes(t.id)"
+            @click="toggleTool(t.id)"
+          >
+            {{ t.label }}
+          </button>
+        </div>
+      </header>
 
       <div class="chat__messages">
         <div
@@ -114,6 +158,10 @@ onMounted(loadConversations);
           <div class="msg__bubble">
             <template v-for="(p, i) in m.parts" :key="i">
               <span v-if="p.type === 'text'">{{ p.text }}</span>
+              <!-- ツール呼び出しは v6 で type: "tool-<name>"。実行されたことだけ示す。 -->
+              <span v-else-if="p.type.startsWith('tool-')" class="tool-badge">
+                🔧 {{ p.type.slice("tool-".length) }}
+              </span>
             </template>
           </div>
         </div>
@@ -228,9 +276,47 @@ onMounted(loadConversations);
 }
 
 .chat__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px;
   font-weight: 600;
   border-bottom: 1px solid #e5e5e5;
+}
+
+/* --- ツール ON/OFF トグル --- */
+.tools {
+  display: flex;
+  gap: 6px;
+}
+
+.tool {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  background: #fff;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tool:hover {
+  border-color: #2563eb;
+}
+
+.tool--on {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.tool-badge {
+  display: inline-block;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
 }
 
 .chat__messages {

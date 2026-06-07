@@ -1,7 +1,13 @@
 import { Hono } from "hono";
-import { streamText, convertToModelMessages, type UIMessage } from "ai";
+import {
+  streamText,
+  convertToModelMessages,
+  stepCountIs,
+  type UIMessage,
+} from "ai";
 import type { StoredMessage, Role } from "@app/shared";
 import { getModel, SYSTEM_PROMPT } from "../ai/provider.js";
+import { buildTools } from "../ai/tools.js";
 import { conversationRepo } from "../repo/conversation.js";
 
 export const chatRoutes = new Hono();
@@ -35,13 +41,26 @@ function extractText(message: UIMessage | undefined): string {
 
 // POST /api/chat — UI message stream を返しつつ完了時に永続化する。
 chatRoutes.post("/api/chat", async (c) => {
-  const { id, messages }: { id: string; messages: UIMessage[] } =
+  // `tools` はフロントが選択中のツール ID 配列（WEB アプリ状態。履歴には残さない）。
+  // 会話の途中で切り替えても、毎リクエストの値で有効ツールが決まる。
+  const {
+    id,
+    messages,
+    tools,
+  }: { id: string; messages: UIMessage[]; tools?: unknown } =
     await c.req.json();
+
+  // 許可リスト（Search/Extract）で絞った tools マップ。未選択なら undefined。
+  const activeTools = buildTools(tools);
 
   const result = streamText({
     model: getModel(),
     system: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages), // ★ v6 で async
+    // ツールがあるときだけ渡す。多段（ツール呼び出し→結果→応答）には停止条件が必須。
+    ...(activeTools
+      ? { tools: activeTools, stopWhen: stepCountIs(5) }
+      : {}),
   });
 
   return result.toUIMessageStreamResponse({
