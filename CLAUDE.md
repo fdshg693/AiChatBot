@@ -2,14 +2,16 @@
 
 汎用 AI チャットボット。pnpm モノレポ（`shared` / `backend` / `frontend`）。
 
-## まず読む
+## 必要に応じて読む
 
-- 契約・データモデル・各層の方針: [docs/CONTRACT.md](docs/CONTRACT.md)
-- バージョン動向・ハマりどころ: [docs/CAUTION.md](docs/CAUTION.md)
+実装に当たって守るべき契約・データモデル・各レイヤの方針は [CONTRACT.md](docs/CONTRACT.md) を参照。
+バージョン動向・ハマりどころ（AI SDK v4→v5/v6 の破壊的変更など）は [CAUTION.md](docs/CAUTION.md) を参照。
+現状提供している機能は [FEATURES.md](docs/FEATURES.md) を参照。
+主要なライブラリ等の説明は[LIBRARIES.md](docs/LIBRARIES.md)を参照。
 
-実装前に上記2つを必ず確認する。ここ（CLAUDE.md）には恒久的なルールだけを書き、設計の詳細は docs に置く（二重管理しない）。
+ここ（CLAUDE.md）には恒久的なルールだけを書き、設計の詳細は docs に置く（二重管理しない）。
 
-## 技術スタック（固定）
+## 主要技術スタック
 
 - TypeScript / ESM（全パッケージ `"type": "module"`）
 - パッケージマネージャ: **pnpm**（`npm` / `yarn` を使わない）
@@ -26,7 +28,6 @@
 - **依存方向は一方向**: `frontend → shared` / `backend → shared`。`shared` は他レイヤに依存しない。
 - `frontend` ⇔ `backend` は **`ai` のメジャーを一致**させる（stream 互換のため）。
 - 共有の型・スキーマは `shared` に置き、両側から `@app/shared` で参照する。
-- YAGNI。最小チャットボットに不要なもの（RAG 用埋め込み列、tool parts の自前固定など）を先回りで作らない。
 
 ## コマンド
 
